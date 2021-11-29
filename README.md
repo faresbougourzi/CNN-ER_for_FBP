@@ -2,7 +2,7 @@
 
 In summary, the main contributions of this paper are as follows:
 
--We propose ParamSmoothL1 regression loss function. In addition, we introduce a
+- We propose ParamSmoothL1 regression loss function. In addition, we introduce a
 dynamic law that changes the parameter of the robust loss function during train-
 ing. To this end, we use the cosine law with the following robust loss functions:
 ParamSmoothL1, Huber and Tukey. This can solve the issue of complexity in
