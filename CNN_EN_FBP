@@ -1,0 +1,195 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Nov 29 15:18:51 2021
+
+@author: FaresBougourzi
+"""
+
+# Face Beauty Prediction Project
+# Bougourzi Fares
+
+from FBP_Dataloader import Beauty_Db, Beauty_Db2im
+from models import REXINCET
+from utils import MAE_distance, PC_mine
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F 
+import torch.optim as optim
+import torchvision
+import numpy as np
+import matplotlib.pyplot as plt
+
+import torchvision.transforms as transforms
+import numpy as np
+import scipy.io as sio
+
+from tqdm import tqdm
+
+import argparse
+
+def Test_CNN_EN_FBP():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--Fold', type=int, default=6,
+                        help='1-5 stand for the 5 folds and 6 for 60-40 data splitting') 
+    parser.add_argument('--modelsavepath', type=str, default= "./Models/",
+                        help='The path where to save the trained model')
+    parser.add_argument('--device', type=str, default= "cuda:0",
+                        help='The GPU device if available')
+    parser.add_argument('--modelspath', type=str, default= "./Models/",
+                        help='Path to load the models')
+  
+    
+    opt = parser.parse_args()
+
+
+    """
+    Transformer
+    
+    """ 
+
+    test_transform = transforms.Compose([
+            transforms.ToPILImage(mode='RGB'),
+            transforms.Resize((224, 224)),
+            transforms.ToTensor()
+    ])  
+
+
+    test_transform2 = transforms.Resize((299, 299))
+
+    """
+    Dataset
+    
+    """ 
+              
+    test_set = Beauty_Db(
+            root='./'
+            ,train = 'test_fold6.pt'
+            ,transform = test_transform
+    ) 
+   
+
+     
+    device = torch.device(opt.device)
+    fold_name = str(opt.Fold) + '_'
+    
+    """
+    Load ResneXt-50 with MSE loss function trained model
+    
+    """     
+   
+    model_name = 'ResneXt_' + fold_name +  'MSE.pt'
+    model1 = torchvision.models.resnext50_32x4d(pretrained=True)
+    model1.fc = nn.Linear(2048, 1)    
+    model1 = model1.to(device) 
+    model1.load_state_dict(torch.load(opt.modelspath + model_name)) 
+
+    """
+    Load Inception-v3 with Dynamic Huber loss function trained model
+    
+    """
+    model_name = 'Inception_' + fold_name +  'Dy_Huber.pt'
+    model2 = torchvision.models.inception_v3(pretrained=True)
+    model2.fc = nn.Linear(2048, 1)    
+    model2 = model2.to(device) 
+    model2.load_state_dict(torch.load(opt.modelspath + model_name))  
+ 
+    """
+    Load REXINCET with MSE loss function trained model
+    
+    """    
+    model_name = 'REXINCET_' + fold_name +  'MSE.pt'
+    model3 = REXINCET()   
+    model3 = model3.to(device) 
+    model3.load_state_dict(torch.load(opt.modelspath + model_name))   
+
+    """
+    Load REXINCET with Dynamic Huber loss function trained model
+    
+    """     
+    model_name = 'REXINCET_' + fold_name +  'Dy_Huber.pt'
+    model4 = REXINCET()   
+    model4 = model4.to(device) 
+    model4.load_state_dict(torch.load(opt.modelspath + model_name))  
+
+    """
+    Load REXINCET with Dynamic ParamSmoothL1 loss function trained model
+    
+    """ 
+    model_name = 'REXINCET_' + fold_name +  'Dy_ParamSmoothL1.pt'
+    model5 = REXINCET()   
+    model5 = model5.to(device) 
+    model5.load_state_dict(torch.load(opt.modelspath + model_name)) 
+
+    """
+    Load REXINCET with Dynamic Tukey loss function trained model
+    
+    """ 
+    model_name = 'REXINCET_' + fold_name +  'Dy_Tukey.pt'
+    model6 = REXINCET()   
+    model6 = model6.to(device) 
+    model6.load_state_dict(torch.load(opt.modelspath + model_name)) 
+    
+
+    validate_loader = torch.utils.data.DataLoader(test_set, batch_size = 1)      
+    
+    itr = -1
+    labels_ts = np.zeros([len(test_set),1])
+    pred_ts1 = np.zeros([len(test_set),1])
+    pred_ts2 = np.zeros([len(test_set),1])
+    pred_ts3 = np.zeros([len(test_set),1])
+    pred_ts4 = np.zeros([len(test_set),1])
+    pred_ts5 = np.zeros([len(test_set),1])
+    pred_ts6 = np.zeros([len(test_set),1])
+    epsi_ts =  np.zeros([len(test_set),1]) 
+    for batch in tqdm(validate_loader): 
+        itr += 1
+        image, labels, epsil = batch
+        image1 = test_transform2(image)
+        image = image.float().to(device)
+        image1 = image.float().to(device)
+
+        model1.eval()
+        model2.eval()
+        model3.eval()
+        model4.eval()
+        model5.eval()
+        model6.eval()
+        with torch.no_grad():
+            pred1 = model1(image)
+            pred2 = model2(image1)
+            pred3 = model3(image, image1)
+            pred4 = model4(image, image1)
+            pred5 = model5(image, image1)
+            pred6 = model6(image, image1)
+            
+        labels_ts[itr,0] = labels
+        epsi_ts[itr,0] = epsil
+        pred_ts1[itr,0] = pred1
+        pred_ts2[itr,0] = pred2
+        pred_ts3[itr,0] = pred3
+        pred_ts4[itr,0] = pred4
+        pred_ts5[itr,0] = pred5
+        pred_ts6[itr,0] = pred6                    
+        del image; del image1; del labels
+        
+
+
+    preds_ts = np.mean([pred_ts1, pred_ts2, pred_ts3, pred_ts4, pred_ts5, pred_ts6], 0)        
+    test_MAE = float(np.mean(np.abs(preds_ts - labels_ts)))
+    test_RMSE = float(np.sqrt(np.mean((preds_ts - labels_ts)**2)))
+    test_PC = float(PC_mine(preds_ts, labels_ts))
+    test_epsilon = float(np.mean(1-np.exp(-((preds_ts - labels_ts)**2)/(2*(epsi_ts)**2))))
+        
+    print('CNN_EN Result')                          
+    print(test_PC)                        
+    print(test_MAE) 
+    print(test_RMSE) 
+    print(test_epsilon) 
+
+
+if __name__ == "__main__":
+    Test_CNN_EN_FBP()
+
+
+
