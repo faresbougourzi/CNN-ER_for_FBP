@@ -277,7 +277,7 @@ def Train_FBP():
                     
                     total_loss += loss.item()            
                     labels2_tr.extend(labels.cpu().numpy())
-                    labels_pred_tr.extend(preds.detach().detach().cpu().numpy()) 
+                    labels_pred_tr.extend(preds.detach().cpu().numpy()) 
                     epsi_tr.extend(epsil.numpy())                    
                     del images1; del images2; del labels                                          
                     
